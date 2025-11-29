@@ -111,10 +111,18 @@ def extract_head_orientation(
 
 def main():
     # --- OSC and DMX Configuration ---
-    target_ip = "192.168.10.38"  # IP of the receiving device
-    target_port = 5000  # OSC port
-    client = SimpleUDPClient(target_ip, target_port)
-    print(f"OSC sender ready -> {target_ip}:{target_port} (Address: /pan_tilt_N, /blink_N, /mouth_open_N)")
+    # Define target IPs and ports for up to 3 faces
+    targets = [
+        {"ip": "192.168.10.38", "port": 5000},
+        {"ip": "192.168.10.39", "port": 5000},
+        {"ip": "192.168.10.40", "port": 5000},
+    ]
+    clients = [SimpleUDPClient(target["ip"], target["port"]) for target in targets]
+    print("OSC senders ready:")
+    for i, target in enumerate(targets):
+        print(
+            f"  Client {i} -> {target['ip']}:{target['port']} (Address: /pan_tilt_N, /blink_N, /mouth_open_N)"
+        )
 
     # OSC client for Max/DSP on the same computer
     max_ip = "127.0.0.1"  # Localhost
@@ -140,7 +148,7 @@ def main():
     frame_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
     frame_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
-    analyzer = FaceAnalyzer(image_shape=(frame_width, frame_height))
+    analyzer = FaceAnalyzer(max_nb_faces=3, image_shape=(frame_width, frame_height))
     cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
 
     print("Starting face tracking for DMX control. Press 'q' to quit.")
@@ -159,9 +167,15 @@ def main():
             face_count = getattr(analyzer, "nb_faces", len(faces))
 
             if face_count > 0 and faces:
-                for index, face in enumerate(faces):
+                # Process up to 3 faces
+                for index, face in enumerate(faces[:3]):
                     if not face.ready:
                         continue
+
+                    # Select the client based on the face index
+                    if index >= len(clients):
+                        continue
+                    client = clients[index]
 
                     orientation_data = extract_head_orientation(face)
 
