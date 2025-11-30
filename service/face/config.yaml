@@ -1,0 +1,7 @@
+osc_targets:
+  - ip: "127.0.0.1"
+    port: 5000
+
+max_osc:
+  ip: "127.0.0.1"
+  port: 8000

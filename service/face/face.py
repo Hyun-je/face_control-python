@@ -15,6 +15,7 @@ import numpy as np
 from pythonosc.udp_client import SimpleUDPClient
 from scipy.spatial import distance as dist
 from scipy.spatial.transform import Rotation as R
+import yaml
 
 # Ensure FaceAnalyzer is available. You may need to install it:
 # pip install FaceAnalyzer
@@ -48,6 +49,12 @@ def calculate_mar(mouth: np.ndarray) -> float:
         return 0.0  # Should not happen with real landmarks
     mar = a / b
     return float(mar)
+
+
+def load_config(config_path: str) -> dict:
+    """Loads configuration from a YAML file."""
+    with open(config_path, "r") as f:
+        return yaml.safe_load(f)
 
 
 def configure_capture(video_path: str | None = None) -> cv2.VideoCapture:
@@ -193,17 +200,23 @@ def parse_arguments():
     parser.add_argument(
         "--debug", action="store_true", help="Enable GUI display for debugging."
     )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="service/face/config.yaml",
+        help="Path to the configuration YAML file.",
+    )
     return parser.parse_args()
 
 
 def main():
     args = parse_arguments()
 
+    config = load_config(args.config)
+
     # --- OSC and DMX Configuration ---
     # Define target IPs and ports for up to 3 faces
-    targets = [
-        {"ip": "127.0.0.1", "port": 5000},
-    ]
+    targets = config["osc_targets"]
     clients = [SimpleUDPClient(target["ip"], target["port"]) for target in targets]
     print("OSC senders ready:")
     for i, target in enumerate(targets):
@@ -212,8 +225,8 @@ def main():
         )
 
     # OSC client for Max/DSP on the same computer
-    max_ip = "127.0.0.1"  # Localhost
-    max_port = 8000  # Common port for Max/MSP, change if needed
+    max_ip = config["max_osc"]["ip"]
+    max_port = config["max_osc"]["port"]
     max_client = SimpleUDPClient(max_ip, max_port)
     print(f"OSC sender for Max/MSP ready -> {max_ip}:{max_port} (Address: /pan_N, /tilt_N, /blink_N, /mouth_open_N)")
 
