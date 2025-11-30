@@ -256,9 +256,9 @@ def main():
                         # Tilt mapping: pitch [-90, 90] -> tilt [0, 180]
                         # Inverted so that head up = light tilts down
                         if pitch < 0:
-                            tilt = pitch + 90.0
+                            tilt = pitch * pitch * pitch / 2000.0 + 90.0
                         else:
-                            tilt = pitch + 90.0
+                            tilt = pitch * pitch * pitch / 2000.0 + 90.0
                         tilt = max(0.0, min(180.0, tilt))
 
                         # --- Send OSC Message ---
