@@ -1,0 +1,6 @@
+
+ola_patch -u 0 -d 8 -p 1
+
+conda create -y -n dmx python=3.8
+
+/home/pi/miniconda3/envs/dmx/bin/python -m pip install ola
