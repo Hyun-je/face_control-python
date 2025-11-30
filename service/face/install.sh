@@ -8,8 +8,12 @@ mkdir $USER_SERVICE_DIR
 
 echo "Create service file : $SERVICE_NAME.service"
 printf "\
+[Unit]
+Requires=dmx.service
+After=dmx.service
+
 [Timer]
-OnBootSec=3s
+OnBootSec=5s
 
 [Service]
 Type=simple
