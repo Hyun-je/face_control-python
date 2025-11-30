@@ -1,4 +1,4 @@
-osc_targets:
+dmx_osc:
   - ip: "127.0.0.1"
     port: 5000
 

@@ -216,7 +216,7 @@ def main():
 
     # --- OSC and DMX Configuration ---
     # Define target IPs and ports for up to 3 faces
-    targets = config["osc_targets"]
+    targets = config["dmx_osc"]
     clients = [SimpleUDPClient(target["ip"], target["port"]) for target in targets]
     print("OSC senders ready:")
     for i, target in enumerate(targets):
