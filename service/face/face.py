@@ -94,7 +94,7 @@ def correct_orientation_for_perspective(
     yaw, pitch, roll = euler_angles[0], euler_angles[1], euler_angles[2]
 
     corrected_yaw = yaw - yaw_correction_angle_deg
-    corrected_pitch = pitch - 30 #- pitch_correction_angle_deg
+    corrected_pitch = pitch #- pitch_correction_angle_deg
 
     return corrected_yaw, corrected_pitch, roll
 
@@ -175,6 +175,7 @@ def extract_head_orientation(
         if pitch is None:
             # Fallback to original pitch if landmark calculation fails
             _, pitch, _ = correct_orientation_for_perspective(position, orientation)
+        pitch -= 30
 
     except Exception:
         return None
@@ -286,7 +287,7 @@ def main():
                         # --- Map Yaw/Pitch to Pan/Tilt ---
                         # Pan mapping: yaw [-90, 90] -> pan [180, 360]
                         pan = yaw * yaw * yaw / 1000.0 + 270.0
-                        pan = max(180.0, min(360.0, pan))
+                        pan = max(90.0, min(450.0, pan))
 
                         # Tilt mapping: pitch [-90, 90] -> tilt [0, 180]
                         # Inverted so that head up = light tilts down
