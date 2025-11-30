@@ -85,20 +85,88 @@ def correct_orientation_for_perspective(
     yaw, pitch, roll = euler_angles[0], euler_angles[1], euler_angles[2]
 
     corrected_yaw = yaw - yaw_correction_angle_deg
-    corrected_pitch = pitch + pitch_correction_angle_deg
+    corrected_pitch = pitch - 30 #- pitch_correction_angle_deg
 
     return corrected_yaw, corrected_pitch, roll
 
 
-def extract_head_orientation(
-    face: Face,
-) -> Tuple[float, float, float, float, float] | None:
-    """Return yaw, pitch, roll derived from FaceAnalyzer's head posture."""
+def _calculate_pitch_from_landmarks(
+    landmarks: np.ndarray, frame_shape: Tuple[int, int]
+) -> float | None:
+    """Calculates head pitch based on the relative positions of facial landmarks."""
     try:
+        # MediaPipe landmark indices
+        NOSE_TIP = 1
+        NOSE_BRIDGE = 168  # A point on the nose bridge, between the eyes
+        CHIN = 152
+
+        # Get pixel coordinates for landmarks
+        nose_tip_pt = landmarks[NOSE_TIP]
+        nose_bridge_pt = landmarks[NOSE_BRIDGE]
+        chin_pt = landmarks[CHIN]
+
+        # Calculate vertical distances
+        # Positive y is downwards
+        dist_nose_bridge_to_tip = nose_tip_pt[1] - nose_bridge_pt[1]
+        dist_tip_to_chin = chin_pt[1] - nose_tip_pt[1]
+
+        # Avoid division by zero
+        if dist_tip_to_chin == 0:
+            return 0.0
+
+        # The ratio indicates how much the nose is pointing up or down
+        # A neutral pose has a ratio around 0.6-0.8
+        ratio = dist_nose_bridge_to_tip / dist_tip_to_chin
+
+        # Map the ratio to a pitch angle. This is an empirical mapping and may need tuning.
+        # We map a neutral ratio (e.g., 0.75) to 0 degrees.
+        # Values lower than neutral mean head is tilted up (negative pitch).
+        # Values higher than neutral mean head is tilted down (positive pitch).
+        pitch_sensitivity = -200  # Multiplier to scale the ratio to a degree-like value
+        neutral_ratio = 0.75
+        pitch = (ratio - neutral_ratio) * pitch_sensitivity
+
+        # Clamp the pitch to a reasonable range, e.g., [-90, 90]
+        pitch = np.clip(pitch, -90.0, 90.0)
+
+        return float(pitch)
+
+    except (IndexError, TypeError):
+        return None
+
+
+def extract_head_orientation(
+    face: Face, frame_shape: Tuple[int, int]
+) -> Tuple[float, float, float, float, float] | None:
+    """
+    Return yaw, pitch, roll.
+    - Yaw and Roll are derived from FaceAnalyzer's head posture.
+    - Pitch is calculated independently using facial landmarks.
+    """
+    try:
+        # Get Yaw and Roll from the 3D model (more stable for these axes)
         position, orientation = face.get_head_posture()
         if position is None or orientation is None:
             return None
-        yaw, pitch, roll = correct_orientation_for_perspective(position, orientation)
+        yaw, _, roll = correct_orientation_for_perspective(position, orientation)
+
+        # Calculate Pitch from landmarks for more direct control
+        landmarks_normalized = face.landmarks
+        if not landmarks_normalized:
+            return None
+
+        # Convert normalized landmarks to pixel coordinates
+        frame_height, frame_width, _ = frame_shape
+        all_landmarks = np.array(
+            [(lm.x * frame_width, lm.y * frame_height) for lm in landmarks_normalized.landmark],
+            dtype=np.float32,
+        )
+
+        pitch = _calculate_pitch_from_landmarks(all_landmarks, frame_shape)
+        if pitch is None:
+            # Fallback to original pitch if landmark calculation fails
+            _, pitch, _ = correct_orientation_for_perspective(position, orientation)
+
     except Exception:
         return None
 
@@ -113,9 +181,7 @@ def main():
     # --- OSC and DMX Configuration ---
     # Define target IPs and ports for up to 3 faces
     targets = [
-        {"ip": "192.168.10.38", "port": 5000},
-        {"ip": "192.168.10.39", "port": 5000},
-        {"ip": "192.168.10.40", "port": 5000},
+        {"ip": "192.168.10.46", "port": 5000},
     ]
     clients = [SimpleUDPClient(target["ip"], target["port"]) for target in targets]
     print("OSC senders ready:")
@@ -148,7 +214,7 @@ def main():
     frame_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
     frame_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
-    analyzer = FaceAnalyzer(max_nb_faces=3, image_shape=(frame_width, frame_height))
+    analyzer = FaceAnalyzer(max_nb_faces=1, image_shape=(frame_width, frame_height))
     cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
 
     print("Starting face tracking for DMX control. Press 'q' to quit.")
@@ -177,22 +243,22 @@ def main():
                         continue
                     client = clients[index]
 
-                    orientation_data = extract_head_orientation(face)
+                    orientation_data = extract_head_orientation(face, frame.shape)
 
                     if orientation_data:
                         _, _, yaw, pitch, roll = orientation_data
 
                         # --- Map Yaw/Pitch to Pan/Tilt ---
                         # Pan mapping: yaw [-90, 90] -> pan [180, 360]
-                        pan = yaw * 1.2 + 270.0
+                        pan = yaw * yaw * yaw / 1000.0 + 270.0
                         pan = max(180.0, min(360.0, pan))
 
                         # Tilt mapping: pitch [-90, 90] -> tilt [0, 180]
                         # Inverted so that head up = light tilts down
                         if pitch < 0:
-                            tilt = pitch * 3 + 90.0
+                            tilt = pitch + 90.0
                         else:
-                            tilt = pitch * 2 + 90.0
+                            tilt = pitch + 90.0
                         tilt = max(0.0, min(180.0, tilt))
 
                         # --- Send OSC Message ---
@@ -317,6 +383,8 @@ def main():
     except KeyboardInterrupt:
         print("\nShutdown requested.")
     finally:
+        for index in range(3):
+            client.send_message(f"/pan_tilt_{index}", [0, 0])
         cap.release()
         cv2.destroyAllWindows()
         print("Resources released.")
