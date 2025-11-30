@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import time
+import argparse
 import sys
 from typing import Tuple
 
@@ -177,7 +179,26 @@ def extract_head_orientation(
     return float(x), float(y), float(yaw), float(pitch), float(roll)
 
 
+def parse_arguments():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description="DMX Face Control: Tracks faces and sends OSC commands."
+    )
+    parser.add_argument(
+        "video_path",
+        nargs="?",
+        default=None,
+        help="Path to video file (optional). If not provided, uses webcam.",
+    )
+    parser.add_argument(
+        "--debug", action="store_true", help="Enable GUI display for debugging."
+    )
+    return parser.parse_args()
+
+
 def main():
+    args = parse_arguments()
+
     # --- OSC and DMX Configuration ---
     # Define target IPs and ports for up to 3 faces
     targets = [
@@ -209,13 +230,14 @@ def main():
     total_mouth_opens = 0
 
     # --- Face Tracking Configuration ---
-    video_path = sys.argv[1] if len(sys.argv) > 1 else None
-    cap = configure_capture(video_path)
+    cap = configure_capture(args.video_path)
     frame_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
     frame_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
     analyzer = FaceAnalyzer(max_nb_faces=1, image_shape=(frame_width, frame_height))
-    cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
+    
+    if args.debug:
+        cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
 
     print("Starting face tracking for DMX control. Press 'q' to quit.")
 
@@ -322,71 +344,78 @@ def main():
                                     print(f"Face {index} Mouth Open detected! Total: {total_mouth_opens}")
                                 mouth_open_counter = 0
 
-                            # Add info text below the bounding box
-                            (x1, _, _, y2) = face.bounding_box
-                            info_text_blink = f"Blinks: {total_blinks} EAR: {ear:.2f}"
-                            cv2.putText(
-                                frame,
-                                info_text_blink,
-                                (int(x1), int(y2) + 15),  # Position below the bounding box
-                                cv2.FONT_HERSHEY_SIMPLEX,
-                                0.5,
-                                (0, 255, 0),
-                                1,
-                                cv2.LINE_AA,
-                            )
+                            if args.debug:
+                                # Add info text below the bounding box
+                                (x1, _, _, y2) = face.bounding_box
+                                info_text_blink = f"Blinks: {total_blinks} EAR: {ear:.2f}"
+                                cv2.putText(
+                                    frame,
+                                    info_text_blink,
+                                    (int(x1), int(y2) + 15),  # Position below the bounding box
+                                    cv2.FONT_HERSHEY_SIMPLEX,
+                                    0.5,
+                                    (0, 255, 0),
+                                    1,
+                                    cv2.LINE_AA,
+                                )
 
-                            info_text_mouth = f"Opens: {total_mouth_opens} MAR: {mar:.2f}"
-                            cv2.putText(
-                                frame,
-                                info_text_mouth,
-                                (int(x1), int(y2) + 35),  # Position below the blink text
-                                cv2.FONT_HERSHEY_SIMPLEX,
-                                0.5,
-                                (0, 255, 0),
-                                1,
-                                cv2.LINE_AA,
-                            )
+                                info_text_mouth = f"Opens: {total_mouth_opens} MAR: {mar:.2f}"
+                                cv2.putText(
+                                    frame,
+                                    info_text_mouth,
+                                    (int(x1), int(y2) + 35),  # Position below the blink text
+                                    cv2.FONT_HERSHEY_SIMPLEX,
+                                    0.5,
+                                    (0, 255, 0),
+                                    1,
+                                    cv2.LINE_AA,
+                                )
 
                         except (AttributeError, IndexError):
                             # Landmarks are not available
                             pass
 
-                        # --- Display Info on Frame ---
-                        face.draw_bounding_box(frame, color=(0, 255, 0))
-                        face.draw_landmarks(
-                            frame, radius=1, thickness=2, color=(255, 255, 255)
-                        )
-                        info_text = (
-                            f"Face {index} Yaw:{yaw:5.1f} Pitch:{pitch:5.1f} | Pan:{pan:5.1f} Tilt:{tilt:5.1f}"
-                        )
-                        (x1, y1, _, _) = face.bounding_box
-                        cv2.putText(
-                            frame,
-                            info_text,
-                            (int(x1), int(y1) - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.5,
-                            (0, 255, 0),
-                            1,
-                            cv2.LINE_AA,
-                        )
+                        if args.debug:
+                            # --- Display Info on Frame ---
+                            face.draw_bounding_box(frame, color=(0, 255, 0))
+                            face.draw_landmarks(
+                                frame, radius=1, thickness=2, color=(255, 255, 255)
+                            )
+                            info_text = (
+                                f"Face {index} Yaw:{yaw:5.1f} Pitch:{pitch:5.1f} | Pan:{pan:5.1f} Tilt:{tilt:5.1f}"
+                            )
+                            (x1, y1, _, _) = face.bounding_box
+                            cv2.putText(
+                                frame,
+                                info_text,
+                                (int(x1), int(y1) - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                0.5,
+                                (0, 255, 0),
+                                1,
+                                cv2.LINE_AA,
+                            )
             else:
                 # If no face is detected, you might want to send a default position, e.g., center
                 # client.send_message("/pan_tilt", [270.0, 90.0])
                 pass
 
-            cv2.imshow(WINDOW_NAME, frame)
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                print("\n'q' pressed. Shutting down.")
-                break
+            if args.debug:
+                cv2.imshow(WINDOW_NAME, frame)
+                if cv2.waitKey(33) & 0xFF == ord("q"):
+                    print("\n'q' pressed. Shutting down.")
+                    break
+            else:
+                time.sleep(33.0 / 1000.0)
+
     except KeyboardInterrupt:
         print("\nShutdown requested.")
     finally:
         for index in range(3):
             client.send_message(f"/pan_tilt_{index}", [270, 90])
         cap.release()
-        cv2.destroyAllWindows()
+        if args.debug:
+            cv2.destroyAllWindows()
         print("Resources released.")
 
 
