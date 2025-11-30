@@ -175,7 +175,7 @@ def extract_head_orientation(
         if pitch is None:
             # Fallback to original pitch if landmark calculation fails
             _, pitch, _ = correct_orientation_for_perspective(position, orientation)
-        pitch -= 30
+        pitch -= 25
 
     except Exception:
         return None
@@ -295,7 +295,7 @@ def main():
                             tilt = pitch * pitch * pitch / 2000.0 + 90.0
                         else:
                             tilt = pitch * pitch * pitch / 2000.0 + 90.0
-                        tilt = max(30.0, min(210.0, tilt))
+                        tilt = max(20.0, min(210.0, tilt))
 
                         # --- Send OSC Message ---
                         client.send_message(f"/pan_tilt_{index}", [pan, tilt])
