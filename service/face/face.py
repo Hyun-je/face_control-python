@@ -295,7 +295,7 @@ def main():
                             tilt = pitch * pitch * pitch / 2000.0 + 90.0
                         else:
                             tilt = pitch * pitch * pitch / 2000.0 + 90.0
-                        tilt = max(0.0, min(180.0, tilt))
+                        tilt = max(30.0, min(210.0, tilt))
 
                         # --- Send OSC Message ---
                         client.send_message(f"/pan_tilt_{index}", [pan, tilt])
