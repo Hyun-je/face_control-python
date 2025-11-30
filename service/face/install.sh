@@ -17,7 +17,7 @@ OnBootSec=5s
 
 [Service]
 Type=simple
-ExecStart=/home/pi/miniconda3/envs/face/bin/python $SCRIPT_DIR/$SERVICE_NAME.py
+ExecStart=/home/pi/miniconda3/envs/face/bin/python $SCRIPT_DIR/$SERVICE_NAME.py --config /home/pi/face_control-python/service/face/config.yaml
 User=pi
 Restart=always
 RestartSec=5
