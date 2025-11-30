@@ -181,7 +181,7 @@ def main():
     # --- OSC and DMX Configuration ---
     # Define target IPs and ports for up to 3 faces
     targets = [
-        {"ip": "192.168.10.46", "port": 5000},
+        {"ip": "127.0.0.1", "port": 5000},
     ]
     clients = [SimpleUDPClient(target["ip"], target["port"]) for target in targets]
     print("OSC senders ready:")
@@ -384,7 +384,7 @@ def main():
         print("\nShutdown requested.")
     finally:
         for index in range(3):
-            client.send_message(f"/pan_tilt_{index}", [0, 0])
+            client.send_message(f"/pan_tilt_{index}", [270, 90])
         cap.release()
         cv2.destroyAllWindows()
         print("Resources released.")
