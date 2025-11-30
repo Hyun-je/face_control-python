@@ -1,5 +1,3 @@
-import time
-import liblo as OSC
 from ola.ClientWrapper import ClientWrapper
 from array import array
 
@@ -18,9 +16,6 @@ TILT_MIN, TILT_MAX = 0, 720
 DEFAULT_PAN  = 270.0
 DEFAULT_TILT = 90.0
 
-# 마지막 OSC 수신 시각
-last_osc_time = time.time()
-
 def angle_to_dmx(angle, min_angle, max_angle):
     # 범위를 벗어나면 클리핑
     if angle < min_angle:
@@ -30,47 +25,30 @@ def angle_to_dmx(angle, min_angle, max_angle):
     # 선형 매핑
     return int((angle - min_angle) / (max_angle - min_angle) * 255)
 
-class PanTiltOSCServer(OSC.ServerThread):
-    def __init__(self, port):
-        OSC.ServerThread.__init__(self, port)
-        # 타입을 None으로 두면 어떤 타입이 와도 처리
-        self.add_method("/pan_tilt", None, self.pan_tilt_handler)
-
-    def pan_tilt_handler(self, path, args, types, src):
-        global pan, tilt, last_osc_time
-        if len(args) >= 2:
-            pan_val, tilt_val = args[0], args[1]
-            pan = float(pan_val)
-            tilt = float(tilt_val)
-            last_osc_time = time.time()   # 🔹 마지막 수신 시각 갱신
-            print(f"[OSC] 수신 - pan: {pan}, tilt: {tilt}")
-        else:
-            print("[OSC] 인자 부족, 값 무시")
 
 def main():
 
     def dmx_sent(state):
         wrapper.Stop()
 
-    osc_port = 5000
-    osc_server = PanTiltOSCServer(osc_port)
-    osc_server.start()
-    print(f"OSC 서버 시작: udp://192.168.10.38:{osc_port} (주소: /pan_tilt)")
-
     wrapper = ClientWrapper()
     client = wrapper.Client()
 
     try:
         while True:
-            pan_str = input(f"Face Pan 값 ({PAN_MIN}-{PAN_MAX}): ")
-            if pan_str.lower() == 'q':
-                break
-            target_pan = float(pan_str)
+            try:
+                pan_str = input(f"Face Pan 값 ({PAN_MIN}-{PAN_MAX}): ")
+                if pan_str.lower() == 'q':
+                    break
+                target_pan = float(pan_str)
 
-            tilt_str = input(f"Face Tilt 값 ({TILT_MIN}-{TILT_MAX}): ")
-            if tilt_str.lower() == 'q':
-                break
-            target_tilt = float(tilt_str)
+                tilt_str = input(f"Face Tilt 값 ({TILT_MIN}-{TILT_MAX}): ")
+                if tilt_str.lower() == 'q':
+                    break
+                target_tilt = float(tilt_str)
+            except ValueError:
+                print("잘못된 입력입니다. 숫자를 입력하거나 'q'로 종료하세요.")
+                continue
 
             data = array('B', [0] * 512)
 
@@ -88,7 +66,22 @@ def main():
             wrapper.Run()
 
     except KeyboardInterrupt:
-        print("종료합니다.")
+        print("\n키보드 입력으로 종료 절차를 시작합니다.")
+    finally:
+        print("프로그램을 종료하기 전에 Pan/Tilt를 0으로 리셋합니다.")
+
+        # Final DMX send needs its own callback
+        def dmx_sent_on_exit(state):
+            wrapper.Stop()
+
+        data = array('B', [0] * 512)
+        data[PAN_CH] = 0
+        data[TILT_CH] = 0
+
+        print(f"DMX 리셋 신호 전송: CH{PAN_CH}=0, CH{TILT_CH}=0")
+        client.SendDmx(UNIVERSE, data, dmx_sent_on_exit)
+        wrapper.Run()
+        print("리셋 완료. 프로그램이 종료되었습니다.")
 
 if __name__ == '__main__':
     main()
