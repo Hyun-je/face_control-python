@@ -1,6 +1,6 @@
 #!/bin/bash
 
-conda create -y -n face python=3.9
+/home/pi/miniconda3/bin/conda create -y -n face python=3.9
 
 /home/pi/miniconda3/envs/face/bin/python -m pip install mediapipe
 /home/pi/miniconda3/envs/face/bin/python -m pip install opencv-python==4.6.0.66
